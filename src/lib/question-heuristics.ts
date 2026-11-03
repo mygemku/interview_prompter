@@ -4,7 +4,10 @@ const QUESTION_WORDS = /^(what|why|how|when|where|who|which|can|could|would|shou
 const QUESTION_MARK = /\?/;
 
 // Filler prefixes often added in spoken speech
-const FILLER_PREFIX = /^(okay|ok|so|and|now|well|alright|next|please|hey|hi|hello|um|uh|right|let's see|moving on|another thing|let me ask)[,\s]+/i;
+const FILLER_PREFIX = /^(okay|ok|so|and|now|well|alright|next|please|hey|hi|hello|um|uh|right|let's see|moving on|another thing|let me ask|interesting|great|thanks for that|thank you)[,\s]+/i;
+
+// Interviewer preambles before the real question
+const PREAMBLE_PREFIX = /^(I would like to know|I'd like to know|I want to know|I wanted to ask|I was wondering|let me ask you|I'm curious|we'd like to understand|I'd like to hear|I want to hear|let's talk about|let's discuss|let's move on to)\b/i;
 
 function stripFillers(text: string): string {
   let cleaned = text;
@@ -29,16 +32,29 @@ export function isLikelyQuestion(text: string): boolean {
   if (/^tell\s+(me|us)\b/i.test(cleaned)) return true;
   if (/^walk\s+(me|us)\b/i.test(cleaned)) return true;
 
+  // Interviewer preamble patterns — the whole utterance is a question
+  if (PREAMBLE_PREFIX.test(cleaned)) return true;
+
+  // Request-style interview directives (share/talk/discuss + topic)
+  if (/^(share|talk|discuss|elaborate)\b/i.test(cleaned) && cleaned.split(/\s+/).length >= 4) return true;
+
   // Embedded question patterns (interviewer style)
-  if (/\b(what\s+(is|are|was|were|do|would|did)|how\s+(do|did|can|would|are)|why\s+(did|do|is|are|would)|can\s+you|could\s+you|would\s+you|tell\s+me\s+about|walk\s+me\s+through|describe\s+(a|an|your|the)|explain\s+(how|why|what|your|the)|give\s+(me|us)\s+(an?\s+)?example)\b/i.test(trimmed)) {
+  if (/\b(what\s+(is|are|was|were|do|would|did|made|programming|languages)|how\s+(do|did|can|would|are|should)|why\s+(did|do|is|are|would|should)|can\s+you|could\s+you|would\s+you|tell\s+me\s+(about|more)|walk\s+me\s+through|describe\s+(a|an|your|the)|explain\s+(how|why|what|your|the)|give\s+(me|us)\s+(an?\s+)?example)\b/i.test(trimmed)) {
     return true;
   }
 
-  // Sentence-split: check if any sentence within the segment is a question
-  const sentences = trimmed.split(/[.!]\s+/);
-  if (sentences.length > 1) {
-    for (const sentence of sentences) {
-      const s = stripFillers(sentence.trim());
+  // "talk about a time" / "think of a time" — behavioral interview pattern
+  if (/\b(talk|think|tell)\s+(about|of)\s+(a\s+time|an?\s+example|a\s+situation|a\s+project|your)\b/i.test(trimmed)) {
+    return true;
+  }
+
+  // Sentence-split: check if any clause within the segment is a question
+  // Speech recognition rarely produces periods, so also split on common
+  // spoken clause boundaries
+  const clauses = trimmed.split(/[.!]\s+|(?:,?\s+(?:and|but|so)\s+(?=(?:what|why|how|when|where|who|which|can|could|would|should|do|does|did|is|are|was|were|have|has|had|tell|describe|explain)\b))/i);
+  if (clauses.length > 1) {
+    for (const clause of clauses) {
+      const s = stripFillers(clause.trim());
       if (s.length > 10 && (QUESTION_WORDS.test(s) || QUESTION_MARK.test(s))) {
         return true;
       }

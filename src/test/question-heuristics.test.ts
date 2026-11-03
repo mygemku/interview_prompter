@@ -47,6 +47,33 @@ describe('question-heuristics', () => {
       expect(isLikelyQuestion('explain how you would design a caching system')).toBe(true);
       expect(isLikelyQuestion('describe your experience with microservices')).toBe(true);
     });
+
+    it('detects indirect/preamble-style interviewer questions', () => {
+      expect(isLikelyQuestion('I would like to know about your experience with react')).toBe(true);
+      expect(isLikelyQuestion("I'd like to hear about your leadership style")).toBe(true);
+      expect(isLikelyQuestion('I wanted to ask what made you apply for this role')).toBe(true);
+      expect(isLikelyQuestion("let's talk about your previous role")).toBe(true);
+      expect(isLikelyQuestion("let's discuss your technical background")).toBe(true);
+    });
+
+    it('detects request-style and behavioral interview directives', () => {
+      expect(isLikelyQuestion('share with me your experience in leadership')).toBe(true);
+      expect(isLikelyQuestion('talk about a time you failed')).toBe(true);
+      expect(isLikelyQuestion('talk about your experience with databases')).toBe(true);
+      expect(isLikelyQuestion('elaborate on your previous answer please')).toBe(true);
+    });
+
+    it('detects questions after long preambles (spoken clause splitting)', () => {
+      expect(isLikelyQuestion('we have a position open and I wanted to ask what made you apply')).toBe(true);
+      expect(isLikelyQuestion('so the next question is about your technical skills what programming languages do you know')).toBe(true);
+      expect(isLikelyQuestion('you mentioned you worked at Google tell me more about that')).toBe(true);
+    });
+
+    it('still rejects pure statements and observations', () => {
+      expect(isLikelyQuestion('I see here that you worked on microservices architecture')).toBe(false);
+      expect(isLikelyQuestion('looking at your resume I see you have experience with Python')).toBe(false);
+      expect(isLikelyQuestion('thanks for that now moving on to the next topic')).toBe(false);
+    });
   });
 
   describe('extractKeywords', () => {
