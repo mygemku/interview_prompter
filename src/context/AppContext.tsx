@@ -66,6 +66,13 @@ function appReducer(state: AppState, action: AppAction): AppState {
             : seg
         ),
       };
+    case 'MARK_QUESTION':
+      return {
+        ...state,
+        transcript: state.transcript.map((seg) =>
+          seg.id === action.payload.id ? { ...seg, isQuestion: true } : seg
+        ),
+      };
     case 'ADD_QA':
       return { ...state, qaPairs: [...state.qaPairs, action.payload] };
     case 'UPDATE_QA_ANSWER':

@@ -19,6 +19,7 @@ export function useQuestionDetection(options?: QuestionDetectionOptions) {
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const pendingQuestionRef = useRef<string | null>(null);
+  const pendingSegIdsRef = useRef<string[]>([]);
   const stateRef = useRef(state);
   const optionsRef = useRef(options);
 
@@ -86,40 +87,43 @@ export function useQuestionDetection(options?: QuestionDetectionOptions) {
     // Accumulate new text into question buffer
     for (const seg of newSegments) {
       if (isLikelyQuestion(seg.text)) {
-        // Each question-like segment becomes the pending question
-        // (later segments override earlier ones to capture the full question)
         pendingQuestionRef.current = seg.text;
+        pendingSegIdsRef.current = [seg.id];
       } else if (pendingQuestionRef.current) {
-        // Non-question segment after a question — the question is complete,
-        // but if the combined text reads as a longer question, merge
         const combined = `${pendingQuestionRef.current} ${seg.text}`;
         if (isLikelyQuestion(combined)) {
           pendingQuestionRef.current = combined;
+          pendingSegIdsRef.current.push(seg.id);
         }
-        // Otherwise leave pending as-is; silence timer will fire it
       }
     }
 
-    // Reset silence timer whenever new segments arrive
+    // Reset silence timer whenever new final segments arrive
     if (pendingQuestionRef.current) {
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = setTimeout(() => {
         const question = pendingQuestionRef.current;
+        const segIds = [...pendingSegIdsRef.current];
         pendingQuestionRef.current = null;
+        pendingSegIdsRef.current = [];
+        silenceTimerRef.current = null;
         if (question) {
+          for (const id of segIds) {
+            dispatch({ type: 'MARK_QUESTION', payload: { id } });
+          }
           processQuestion(question);
         }
       }, state.settings.silenceThresholdMs);
     }
 
-    return () => {
-      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-    };
+    // No cleanup here — interim transcript updates must not cancel the
+    // silence timer. Timer is managed explicitly above and on unmount.
   }, [state.transcript, state.settings.silenceThresholdMs, processQuestion]);
 
   useEffect(() => {
     return () => {
       abortRef.current?.abort();
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     };
   }, []);
 

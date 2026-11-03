@@ -69,6 +69,7 @@ export type AppAction =
   | { type: 'CLEAR_CV' }
   | { type: 'ADD_TRANSCRIPT'; payload: TranscriptSegment }
   | { type: 'UPDATE_TRANSCRIPT'; payload: { id: string; text: string; isFinal: boolean } }
+  | { type: 'MARK_QUESTION'; payload: { id: string } }
   | { type: 'ADD_QA'; payload: QAPair }
   | { type: 'UPDATE_QA_ANSWER'; payload: { id: string; chunk: string } }
   | { type: 'FINISH_QA_STREAM'; payload: { id: string } }
