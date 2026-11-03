@@ -32,6 +32,20 @@ describe('question-heuristics', () => {
       expect(isLikelyQuestion('Thanks for having me today.')).toBe(false);
       expect(isLikelyQuestion('')).toBe(false);
       expect(isLikelyQuestion('   ')).toBe(false);
+      expect(isLikelyQuestion('ok')).toBe(false);
+      expect(isLikelyQuestion('yes sure')).toBe(false);
+    });
+
+    it('detects questions embedded in multi-sentence segments', () => {
+      expect(isLikelyQuestion('Great thanks for that. Can you tell me about your experience with databases')).toBe(true);
+      expect(isLikelyQuestion('Okay moving on. What is your approach to testing')).toBe(true);
+      expect(isLikelyQuestion('Interesting. Describe a challenging project you worked on')).toBe(true);
+    });
+
+    it('detects give-me-example and explain patterns', () => {
+      expect(isLikelyQuestion('give me an example of a time you led a project')).toBe(true);
+      expect(isLikelyQuestion('explain how you would design a caching system')).toBe(true);
+      expect(isLikelyQuestion('describe your experience with microservices')).toBe(true);
     });
   });
 
