@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef, useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 
 interface SpeechRecognitionEvent {
@@ -28,14 +28,35 @@ declare global {
 export function useSpeechRecognition() {
   const { state, dispatch } = useApp();
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const isListeningRef = useRef(false);
   const segmentIdRef = useRef(0);
   const sessionStartRef = useRef(0);
+  const [micError, setMicError] = useState<string | null>(null);
 
   const isSupported = typeof window !== 'undefined' &&
     ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
 
-  const startListening = useCallback(() => {
-    if (!isSupported) return;
+  const startListening = useCallback(async () => {
+    if (!isSupported) {
+      setMicError('Web Speech API is not supported in this browser. Please use Chrome on Android/Desktop or Safari on iPhone.');
+      return;
+    }
+
+    setMicError(null);
+
+    // Explicitly request microphone permission if supported
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((track) => track.stop());
+      } catch (err: unknown) {
+        console.warn('Microphone permission request error:', err);
+        setMicError('Microphone permission denied. Click the lock/tune icon in the browser address bar to allow microphone access.');
+        isListeningRef.current = false;
+        dispatch({ type: 'SET_LISTENING', payload: false });
+        return;
+      }
+    }
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
@@ -77,37 +98,71 @@ export function useSpeechRecognition() {
     };
 
     recognition.onerror = (event) => {
-      console.error('Speech recognition error:', event.error);
-      if (event.error !== 'no-speech') {
+      console.warn('Speech recognition error:', event.error);
+      if (event.error === 'not-allowed') {
+        setMicError('Microphone permission blocked. Please allow microphone in browser address bar.');
+        isListeningRef.current = false;
         dispatch({ type: 'SET_LISTENING', payload: false });
+      } else if (event.error === 'service-not-allowed') {
+        setMicError('Speech recognition service unavailable on this browser or platform.');
+        isListeningRef.current = false;
+        dispatch({ type: 'SET_LISTENING', payload: false });
+      } else if (event.error === 'audio-capture') {
+        setMicError('No microphone detected. Connect a mic and refresh.');
+        isListeningRef.current = false;
+        dispatch({ type: 'SET_LISTENING', payload: false });
+      } else if (event.error === 'network') {
+        setMicError('Speech recognition network error. Reconnecting...');
       }
     };
 
     recognition.onend = () => {
-      // Auto-restart if still supposed to be listening
-      if (state.isListening) {
-        try { recognition.start(); } catch { /* already started */ }
+      // Chrome automatically ends after brief pauses; auto-restart if listening
+      if (isListeningRef.current) {
+        try {
+          recognition.start();
+        } catch {
+          setTimeout(() => {
+            if (isListeningRef.current) {
+              try { recognition.start(); } catch {}
+            }
+          }, 300);
+        }
       }
     };
 
-    recognitionRef.current = recognition;
-    recognition.start();
-    dispatch({ type: 'SET_LISTENING', payload: true });
-    if (!state.sessionStartedAt) {
-      dispatch({ type: 'START_SESSION' });
+    try {
+      recognitionRef.current = recognition;
+      isListeningRef.current = true;
+      recognition.start();
+      dispatch({ type: 'SET_LISTENING', payload: true });
+      if (!state.sessionStartedAt) {
+        dispatch({ type: 'START_SESSION' });
+      }
+    } catch (err) {
+      console.error('Failed to start recognition:', err);
+      setMicError('Failed to start microphone. Please refresh and try again.');
+      isListeningRef.current = false;
+      dispatch({ type: 'SET_LISTENING', payload: false });
     }
-  }, [isSupported, dispatch, state.isListening, state.sessionStartedAt]);
+  }, [isSupported, dispatch, state.sessionStartedAt]);
 
   const stopListening = useCallback(() => {
-    recognitionRef.current?.stop();
+    isListeningRef.current = false;
+    try {
+      recognitionRef.current?.stop();
+    } catch {}
     dispatch({ type: 'SET_LISTENING', payload: false });
   }, [dispatch]);
 
   useEffect(() => {
     return () => {
-      recognitionRef.current?.abort();
+      isListeningRef.current = false;
+      try {
+        recognitionRef.current?.abort();
+      } catch {}
     };
   }, []);
 
-  return { isSupported, isListening: state.isListening, startListening, stopListening };
+  return { isSupported, isListening: state.isListening, micError, startListening, stopListening };
 }

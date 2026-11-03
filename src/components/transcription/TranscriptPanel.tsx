@@ -35,25 +35,39 @@ export function TranscriptPanel({ onAskQuestion }: TranscriptPanelProps) {
         {state.transcript.length === 0 ? (
           <div className="text-gray-500 text-xs italic">
             {state.isListening
-              ? '🎤 Listening to microphone... speak to transcribe'
+              ? '🎤 Listening to microphone... speak an interview question'
               : 'Microphone inactive. Click "Start Listening" or type a question below.'}
           </div>
         ) : (
           state.transcript.map((seg) => (
-            <p
+            <div
               key={seg.id}
-              className={`text-xs leading-relaxed ${
-                seg.isFinal
-                  ? seg.isQuestion
-                    ? 'text-yellow-300 font-semibold'
-                    : 'text-gray-300'
-                  : 'text-gray-500 italic'
-              }`}
+              className="flex items-center justify-between gap-2 hover:bg-gray-800/40 px-1 py-0.5 rounded transition-colors group"
             >
-              <span className="text-gray-600 mr-2">[{Math.round(seg.timestamp / 1000)}s]</span>
-              {seg.text}
-              {seg.isQuestion && <span className="ml-1 text-yellow-400">❓</span>}
-            </p>
+              <p
+                className={`text-xs leading-relaxed flex-1 ${
+                  seg.isFinal
+                    ? seg.isQuestion
+                      ? 'text-yellow-300 font-semibold'
+                      : 'text-gray-300'
+                    : 'text-gray-500 italic'
+                }`}
+              >
+                <span className="text-gray-600 mr-2">[{Math.round(seg.timestamp / 1000)}s]</span>
+                {seg.text}
+                {seg.isQuestion && <span className="ml-1 text-yellow-400">❓</span>}
+              </p>
+              {seg.isFinal && onAskQuestion && (
+                <button
+                  type="button"
+                  onClick={() => onAskQuestion(seg.text)}
+                  className="text-[11px] text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 px-2 py-0.5 rounded border border-blue-500/20 cursor-pointer shrink-0"
+                  title="Generate answer for this question"
+                >
+                  Prompt AI ↗
+                </button>
+              )}
+            </div>
           ))
         )}
       </div>

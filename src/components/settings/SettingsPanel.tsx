@@ -2,7 +2,13 @@ import { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import type { LlmProvider, AnswerStyle } from '../../context/types';
 
-export function SettingsPanel({ onClose }: { onClose: () => void }) {
+export function SettingsPanel({
+  onClose,
+  serverKeys = {},
+}: {
+  onClose: () => void;
+  serverKeys?: Record<string, boolean>;
+}) {
   const { state, dispatch } = useApp();
   const [activeTab, setActiveTab] = useState<'provider' | 'style'>('provider');
 
@@ -64,14 +70,25 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-medium text-sm">{p.name}</span>
-                    {state.settings.activeProvider === p.id && (
-                      <span className="text-xs text-blue-400">Active</span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {serverKeys[p.id] && (
+                        <span className="text-[11px] text-green-400 bg-green-500/10 px-2 py-0.5 rounded border border-green-500/30">
+                          ✓ Netlify Key Active
+                        </span>
+                      )}
+                      {state.settings.activeProvider === p.id && (
+                        <span className="text-xs text-blue-400 font-semibold">Active</span>
+                      )}
+                    </div>
                   </div>
 
                   <input
                     type="password"
-                    placeholder="API Key"
+                    placeholder={
+                      serverKeys[p.id]
+                        ? 'Configured in Netlify env (Optional to override)'
+                        : 'API Key (or set in Netlify env)'
+                    }
                     value={state.settings.providers[p.id].apiKey}
                     onClick={(e) => e.stopPropagation()}
                     onChange={(e) => {

@@ -5,9 +5,9 @@ import Anthropic from "@anthropic-ai/sdk";
 
 interface AskRequest {
   question: string;
-  cvSections: { type: string; title: string; content: string }[];
+  cvSections?: { type: string; title: string; content: string }[];
   provider: 'gemini' | 'openai' | 'claude';
-  apiKey: string;
+  apiKey?: string;
   model: string;
   answerStyle: 'first-person' | 'bullet-points' | 'concise-notes';
 }
@@ -18,24 +18,25 @@ const STYLE_INSTRUCTIONS: Record<string, string> = {
   'concise-notes': 'Give a brief, structured outline with key points and specific details to mention.',
 };
 
-function buildSystemPrompt(answerStyle: string, cvSections: AskRequest['cvSections']): string {
-  const cvText = cvSections
-    .map((s) => `[${s.type.toUpperCase()}: ${s.title}]\n${s.content}`)
-    .join('\n\n');
+function buildSystemPrompt(answerStyle: string, cvSections?: AskRequest['cvSections']): string {
+  const hasCv = cvSections && cvSections.length > 0;
+  const cvText = hasCv
+    ? cvSections.map((s) => `[${s.type.toUpperCase()}: ${s.title}]\n${s.content}`).join('\n\n')
+    : 'No candidate CV uploaded yet. Answer based on general industry best practices, modern software engineering concepts, and the STAR framework (Situation, Task, Action, Result).';
 
-  return `You are an interview answer assistant. The candidate has provided their CV/resume below.
-Your role is to help them answer interview questions using information from their CV.
+  return `You are an interview answer assistant. The candidate has provided their CV/resume below (if uploaded).
+Your role is to help them answer interview questions effectively and concisely.
 
 ANSWER STYLE: ${STYLE_INSTRUCTIONS[answerStyle] || STYLE_INSTRUCTIONS['first-person']}
 
 RULES:
-- Use ONLY information from the CV. Do not fabricate experiences or skills.
-- If the CV doesn't contain relevant information, say so honestly and suggest how to pivot the answer to related experience.
+- When CV info is present, prioritize facts and achievements from the CV. Do not fabricate experiences.
+- When no CV is present, provide confident, structured talking points using standard industry best practices.
 - Sound natural and confident, not robotic.
-- Highlight specific metrics, technologies, and achievements from the CV.
+- Highlight specific metrics, technologies, and achievements.
 - Be concise — this will be read as a teleprompter during a live interview.
 
-CANDIDATE'S CV:
+CANDIDATE CONTEXT:
 ---
 ${cvText}
 ---`;
@@ -45,8 +46,8 @@ function sseMessage(data: object): string {
   return `data: ${JSON.stringify(data)}\n\n`;
 }
 
-async function streamGemini(body: AskRequest): Promise<ReadableStream> {
-  const genAI = new GoogleGenerativeAI(body.apiKey);
+async function streamGemini(body: AskRequest, apiKey: string): Promise<ReadableStream> {
+  const genAI = new GoogleGenerativeAI(apiKey);
   const systemPrompt = buildSystemPrompt(body.answerStyle, body.cvSections);
 
   const selectedModel = body.model || 'gemini-3.5-flash-lite';
@@ -91,8 +92,8 @@ async function streamGemini(body: AskRequest): Promise<ReadableStream> {
   throw lastError;
 }
 
-async function streamOpenAI(body: AskRequest): Promise<ReadableStream> {
-  const openai = new OpenAI({ apiKey: body.apiKey });
+async function streamOpenAI(body: AskRequest, apiKey: string): Promise<ReadableStream> {
+  const openai = new OpenAI({ apiKey });
   const systemPrompt = buildSystemPrompt(body.answerStyle, body.cvSections);
 
   const stream = await openai.chat.completions.create({
@@ -123,8 +124,8 @@ async function streamOpenAI(body: AskRequest): Promise<ReadableStream> {
   });
 }
 
-async function streamClaude(body: AskRequest): Promise<ReadableStream> {
-  const anthropic = new Anthropic({ apiKey: body.apiKey });
+async function streamClaude(body: AskRequest, apiKey: string): Promise<ReadableStream> {
+  const anthropic = new Anthropic({ apiKey });
   const systemPrompt = buildSystemPrompt(body.answerStyle, body.cvSections);
 
   const stream = anthropic.messages.stream({
@@ -160,20 +161,38 @@ export default async function handler(req: Request, _context: Context) {
   try {
     const body = await req.json() as AskRequest;
 
-    if (!body.question || !body.apiKey || !body.provider) {
-      return new Response('Missing required fields', { status: 400 });
+    if (!body.question || !body.provider) {
+      return new Response('Missing required fields: question and provider', { status: 400 });
+    }
+
+    const serverKey =
+      body.provider === 'gemini'
+        ? process.env.GEMINI_API_KEY
+        : body.provider === 'openai'
+        ? process.env.OPENAI_API_KEY
+        : body.provider === 'claude'
+        ? process.env.ANTHROPIC_API_KEY
+        : undefined;
+
+    const effectiveApiKey = body.apiKey?.trim() || serverKey?.trim();
+
+    if (!effectiveApiKey) {
+      return new Response(
+        `Missing API key for ${body.provider}. Please configure ${body.provider.toUpperCase()}_API_KEY on Netlify or enter your key in Settings.`,
+        { status: 400 }
+      );
     }
 
     let stream: ReadableStream;
     switch (body.provider) {
       case 'gemini':
-        stream = await streamGemini(body);
+        stream = await streamGemini(body, effectiveApiKey);
         break;
       case 'openai':
-        stream = await streamOpenAI(body);
+        stream = await streamOpenAI(body, effectiveApiKey);
         break;
       case 'claude':
-        stream = await streamClaude(body);
+        stream = await streamClaude(body, effectiveApiKey);
         break;
       default:
         return new Response(`Unknown provider: ${body.provider}`, { status: 400 });

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuestionDetection } from './hooks/useQuestionDetection';
 import { CvUploader } from './components/cv/CvUploader';
 import { CvPreview } from './components/cv/CvPreview';
@@ -20,11 +20,34 @@ function AppContent() {
   const [showHistory, setShowHistory] = useState(false);
   const [isOverlayOpen, setIsOverlayOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>('prompter');
+  const [serverKeys, setServerKeys] = useState<Record<string, boolean>>({});
   const { state, dispatch } = useApp();
 
-  const { askQuestion } = useQuestionDetection();
+  const { askQuestion } = useQuestionDetection({
+    onQuestionTriggered: () => {
+      setMobileTab('prompter');
+      setShowHistory(false);
+    },
+  });
 
-  const hasApiKey = Boolean(state.settings.providers[state.settings.activeProvider]?.apiKey);
+  useEffect(() => {
+    fetch('/api/providers')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.providers) {
+          const map: Record<string, boolean> = {};
+          data.providers.forEach((p: { id: string; hasServerKey?: boolean }) => {
+            map[p.id] = Boolean(p.hasServerKey);
+          });
+          setServerKeys(map);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const hasApiKey =
+    Boolean(state.settings.providers[state.settings.activeProvider]?.apiKey) ||
+    Boolean(serverKeys[state.settings.activeProvider]);
 
   return (
     <div className="h-screen flex flex-col bg-[#0f1117] text-gray-100 overflow-hidden">
@@ -206,7 +229,12 @@ function AppContent() {
       </div>
 
       {/* Modals & Overlays */}
-      {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
+      {showSettings && (
+        <SettingsPanel
+          onClose={() => setShowSettings(false)}
+          serverKeys={serverKeys}
+        />
+      )}
       {isOverlayOpen && <OverlayMode onClose={() => setIsOverlayOpen(false)} />}
     </div>
   );

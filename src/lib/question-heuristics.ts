@@ -8,8 +8,27 @@ export function isLikelyQuestion(text: string): boolean {
   if (!trimmed) return false;
   if (QUESTION_MARK.test(trimmed)) return true;
   if (QUESTION_WORDS.test(trimmed)) return true;
-  // "Tell me about..." style
-  if (/^tell\s+me/i.test(trimmed)) return true;
+
+  // Clean common speech recognition filler prefixes ("so", "and", "okay", etc.)
+  let cleaned = trimmed;
+  let prev = '';
+  while (cleaned !== prev) {
+    prev = cleaned;
+    cleaned = cleaned
+      .replace(/^(okay|ok|so|and|now|well|alright|next|please|hey|hi|hello|um|uh)[,\s]+/i, '')
+      .trim();
+  }
+
+  if (QUESTION_MARK.test(cleaned)) return true;
+  if (QUESTION_WORDS.test(cleaned)) return true;
+  if (/^tell\s+(me|us)\b/i.test(cleaned)) return true;
+  if (/^walk\s+(me|us)\b/i.test(cleaned)) return true;
+
+  // Also check if contains typical question patterns in conversational speech
+  if (/\b(what\s+(is|are|was|were)|how\s+(do|did|can|would)|why\s+(did|do|is|are)|can\s+you|could\s+you|would\s+you|tell\s+me\s+about|walk\s+me\s+through)\b/i.test(trimmed)) {
+    return true;
+  }
+
   return false;
 }
 

@@ -18,6 +18,14 @@ describe('question-heuristics', () => {
       expect(isLikelyQuestion('Describe a time you failed')).toBe(true);
     });
 
+    it('detects conversational questions with spoken filler prefixes without question marks', () => {
+      expect(isLikelyQuestion('so what is your experience with React')).toBe(true);
+      expect(isLikelyQuestion('okay can you explain your architecture choices')).toBe(true);
+      expect(isLikelyQuestion('and how did you optimize database queries')).toBe(true);
+      expect(isLikelyQuestion('please describe your greatest technical achievement')).toBe(true);
+      expect(isLikelyQuestion('now walk me through your recent project')).toBe(true);
+    });
+
     it('rejects regular statements', () => {
       expect(isLikelyQuestion('I worked at Google for five years.')).toBe(false);
       expect(isLikelyQuestion('The quick brown fox jumps over the lazy dog.')).toBe(false);

@@ -8,7 +8,11 @@ import { streamAnswer } from '../lib/llm-client';
  * Watches finalized transcript segments.
  * When silence exceeds threshold after a question-like segment, triggers LLM.
  */
-export function useQuestionDetection() {
+interface QuestionDetectionOptions {
+  onQuestionTriggered?: (question: string) => void;
+}
+
+export function useQuestionDetection(options?: QuestionDetectionOptions) {
   const { state, dispatch } = useApp();
   const lastProcessedRef = useRef<string | null>(null);
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -16,21 +20,24 @@ export function useQuestionDetection() {
 
   const processQuestion = useCallback(
     (questionText: string) => {
-      if (!state.cv || !questionText.trim()) return;
+      const cleanQuestion = questionText.trim();
+      if (!cleanQuestion) return;
 
       const { settings, cv } = state;
       const providerConfig = settings.providers[settings.activeProvider];
-      if (!providerConfig.apiKey) return;
 
-      const keywords = extractKeywords(questionText);
-      const relevant = selectRelevantSections(cv.sections, keywords);
+      const keywords = extractKeywords(cleanQuestion);
+      const relevant = cv?.sections ? selectRelevantSections(cv.sections, keywords) : [];
       const qaId = `qa-${Date.now()}`;
+
+      // Notify caller to switch view to prompter
+      options?.onQuestionTriggered?.(cleanQuestion);
 
       dispatch({
         type: 'ADD_QA',
         payload: {
           id: qaId,
-          question: questionText,
+          question: cleanQuestion,
           detectedAt: Date.now(),
           answer: '',
           isStreaming: true,
@@ -44,10 +51,10 @@ export function useQuestionDetection() {
       abortRef.current?.abort();
 
       abortRef.current = streamAnswer({
-        question: questionText,
+        question: cleanQuestion,
         cvSections: relevant,
         provider: providerConfig.provider,
-        apiKey: providerConfig.apiKey,
+        apiKey: providerConfig.apiKey || '', // Server will fallback to Netlify environment variable
         model: providerConfig.model,
         answerStyle: settings.answerStyle,
         onChunk: (chunk) => dispatch({ type: 'UPDATE_QA_ANSWER', payload: { id: qaId, chunk } }),
@@ -58,7 +65,7 @@ export function useQuestionDetection() {
         },
       });
     },
-    [state, dispatch],
+    [state, dispatch, options],
   );
 
   useEffect(() => {
