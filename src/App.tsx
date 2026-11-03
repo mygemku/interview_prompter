@@ -20,7 +20,20 @@ function AppContent() {
   const [showHistory, setShowHistory] = useState(false);
   const [isOverlayOpen, setIsOverlayOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>('prompter');
-  const [serverKeys, setServerKeys] = useState<Record<string, boolean>>({});
+  const [serverKeys, setServerKeys] = useState<Record<string, boolean>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('server_keys_cache') || '{}');
+    } catch {
+      return {};
+    }
+  });
+  const [checkingServerKeys, setCheckingServerKeys] = useState(() => {
+    try {
+      return !localStorage.getItem('server_keys_cache');
+    } catch {
+      return true;
+    }
+  });
   const { state, dispatch } = useApp();
 
   const { askQuestion } = useQuestionDetection({
@@ -40,9 +53,17 @@ function AppContent() {
             map[p.id] = Boolean(p.hasServerKey);
           });
           setServerKeys(map);
+          try {
+            localStorage.setItem('server_keys_cache', JSON.stringify(map));
+          } catch {
+            // ignore
+          }
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        setCheckingServerKeys(false);
+      });
   }, []);
 
   const hasApiKey =
@@ -59,10 +80,10 @@ function AppContent() {
             <span className="truncate">Interview Prompter</span>
           </h1>
           <Badge
-            variant={hasApiKey ? 'green' : 'yellow'}
+            variant={hasApiKey ? 'green' : (checkingServerKeys ? 'blue' : 'yellow')}
             className="hidden sm:inline-flex"
           >
-            {hasApiKey ? state.settings.activeProvider : 'Key Needed'}
+            {hasApiKey ? state.settings.activeProvider : (checkingServerKeys ? 'Checking...' : 'Key Needed')}
           </Badge>
         </div>
 
