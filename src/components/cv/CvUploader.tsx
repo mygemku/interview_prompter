@@ -11,8 +11,8 @@ export function CvUploader() {
   const handleFile = useCallback(
     async (file: File) => {
       const ext = file.name.split('.').pop()?.toLowerCase();
-      if (ext !== 'pdf' && ext !== 'docx') {
-        setError('Please upload a PDF or DOCX file');
+      if (ext !== 'pdf' && ext !== 'docx' && ext !== 'txt' && ext !== 'md') {
+        setError('Please upload a PDF, DOCX, TXT, or MD file');
         return;
       }
 
@@ -121,7 +121,7 @@ export function CvUploader() {
       >
         <input
           type="file"
-          accept=".pdf,.docx"
+          accept=".pdf,.docx,.txt,.md"
           onChange={(e) => {
             const file = e.target.files?.[0];
             if (file) handleFile(file);
@@ -138,7 +138,7 @@ export function CvUploader() {
           ) : (
             <>
               <div className="text-3xl mb-2">📄</div>
-              <p className="text-sm text-gray-300">Drop PDF/DOCX here or click to upload</p>
+              <p className="text-sm text-gray-300">Drop PDF, DOCX, or TXT here or click to upload</p>
               <p className="text-xs text-gray-500 mt-1">Your CV stays in this session only</p>
             </>
           )}

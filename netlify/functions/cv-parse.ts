@@ -1,6 +1,65 @@
 import type { Context } from "@netlify/functions";
-import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
+
+function ensurePolyfills() {
+  if (typeof (globalThis as any).DOMMatrix === 'undefined') {
+    (globalThis as any).DOMMatrix = class DOMMatrix {
+      a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
+      m11 = 1; m12 = 0; m13 = 0; m14 = 0;
+      m21 = 0; m22 = 1; m23 = 0; m24 = 0;
+      m31 = 0; m32 = 0; m33 = 1; m34 = 0;
+      m41 = 0; m42 = 0; m43 = 0; m44 = 1;
+      is2D = true;
+      isIdentity = true;
+      constructor(init?: any) {
+        if (Array.isArray(init) || (init && typeof init.length === 'number')) {
+          if (init.length === 6) {
+            this.a = this.m11 = init[0];
+            this.b = this.m12 = init[1];
+            this.c = this.m21 = init[2];
+            this.d = this.m22 = init[3];
+            this.e = this.m41 = init[4];
+            this.f = this.m42 = init[5];
+          } else if (init.length === 16) {
+            this.m11 = init[0]; this.m12 = init[1]; this.m13 = init[2]; this.m14 = init[3];
+            this.m21 = init[4]; this.m22 = init[5]; this.m23 = init[6]; this.m24 = init[7];
+            this.m31 = init[8]; this.m32 = init[9]; this.m33 = init[10]; this.m34 = init[11];
+            this.m41 = init[12]; this.m42 = init[13]; this.m43 = init[14]; this.m44 = init[15];
+            this.a = this.m11; this.b = this.m12; this.c = this.m21; this.d = this.m22;
+            this.e = this.m41; this.f = this.m42;
+          }
+        }
+      }
+      translate() { return this; }
+      scale() { return this; }
+      rotate() { return this; }
+      multiply() { return this; }
+      preMultiplySelf() { return this; }
+      multiplySelf() { return this; }
+      invertSelf() { return this; }
+      transformPoint(p: any) { return p || { x: 0, y: 0 }; }
+    };
+  }
+  if (typeof (globalThis as any).Path2D === 'undefined') {
+    (globalThis as any).Path2D = class Path2D {
+      addPath() {}
+    };
+  }
+  if (typeof (globalThis as any).ImageData === 'undefined') {
+    (globalThis as any).ImageData = class ImageData {
+      width = 0;
+      height = 0;
+      data = new Uint8ClampedArray(0);
+      constructor(w = 0, h = 0) {
+        this.width = w;
+        this.height = h;
+        this.data = new Uint8ClampedArray(w * h * 4);
+      }
+    };
+  }
+}
+
+ensurePolyfills();
 
 interface CvSection {
   id: string;
@@ -117,6 +176,8 @@ export default async function handler(req: Request, _context: Context) {
     let rawText = '';
 
     if (ext === 'pdf') {
+      ensurePolyfills();
+      const { PDFParse } = await import('pdf-parse');
       const parser = new PDFParse({ data: buffer });
       const textResult = await parser.getText();
       rawText = typeof textResult === 'string' ? textResult : (textResult as any).text ?? '';
@@ -124,8 +185,10 @@ export default async function handler(req: Request, _context: Context) {
     } else if (ext === 'docx') {
       const result = await mammoth.extractRawText({ buffer });
       rawText = result.value;
+    } else if (ext === 'txt' || ext === 'md') {
+      rawText = buffer.toString('utf-8');
     } else {
-      return new Response('Unsupported file type. Use PDF or DOCX.', { status: 400 });
+      return new Response('Unsupported file type. Use PDF, DOCX, TXT, or MD.', { status: 400 });
     }
 
     const sections = chunkCvText(rawText);

@@ -19,3 +19,4 @@ Companion: `BRIEF.md` (what/why/status). One line per event, newest last.
 - **2026-11-03** — Added auto-fallback model chain for Gemini: if primary model hits 503 (high demand) or 429, automatically attempts `gemini-2.5-flash`, `gemini-1.5-flash`, `gemini-2.5-pro`.
 - **2026-11-03** — Switched Gemini model to `gemini-3.5-flash-lite` per user preference. Removed 2.5 and 1.5 models from fallback list.
 - **2026-11-03** — Fixed Netlify server env key detection, continuous speech recognition loop, conversational speech heuristics, and mobile auto-switch to prompter tab.
+- **2026-11-03** — Fixed PDF CV parser on Netlify: polyfilled `DOMMatrix`, `Path2D`, and `ImageData` for Node serverless environment; added TXT and MD support.
